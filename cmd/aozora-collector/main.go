@@ -16,7 +16,7 @@ type Entry struct {
 	Author   string
 	TitleID  string
 	Title    string
-	InfoURL  string
+	SiteURL  string
 	ZipURL   string
 }
 
@@ -28,6 +28,7 @@ func findEntries(siteURL string) ([]Entry, error) {
 
 	// 詳細ページへのURLを正規表現で抜き出す
 	pat := regexp.MustCompile(`.*/cards/([0-9]+)/card([0-9]+).html$`)
+	entries := []Entry{}
 	// URL一覧を取得
 	doc.Find("ol li a").Each(func(n int, elem *goquery.Selection) {
 		token := pat.FindStringSubmatch(elem.AttrOr("href", ""))
@@ -35,15 +36,27 @@ func findEntries(siteURL string) ([]Entry, error) {
 		if len(token) != 3 { // 正規表現にマッチしない場合
 			return
 		}
+		title := elem.Text()
 		pageURL := fmt.Sprintf("https://www.aozora.gr.jp/cards/%s/card%s.html",
 			token[1], token[2])
 		author, zipURL := findAuthorAndZIP(pageURL) // 作者とZIPファイルのURLを得る
-		println(author, zipURL)
-
+		if zipURL != "" {
+			entries = append(entries, Entry{
+				AuthorID: token[1],
+				Author:   author,
+				TitleID:  token[2],
+				Title:    title,
+				SiteURL:  siteURL,
+				ZipURL:   zipURL,
+			})
+		}
 	})
-	
-	return nil, nil // とりま、nil
+
+	return entries, nil
 }
+
+// 最終的な処理は深く呼び出した関数の中では行わない
+// エラーが起きた場合はその場で強制終了せずmainに戻す
 
 // 作者とZIPファイルのURLを得る
 func findAuthorAndZIP(siteURL string) (string, string) {
