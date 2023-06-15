@@ -3,7 +3,10 @@ package main
 import (
 	"fmt"
 	"log"
+	"net/url"
+	"path"
 	"regexp"
+	"strings"
 
 	"github.com/PuerkitoBio/goquery"
 )
@@ -28,16 +31,53 @@ func findEntries(siteURL string) ([]Entry, error) {
 	// URL一覧を取得
 	doc.Find("ol li a").Each(func(n int, elem *goquery.Selection) {
 		token := pat.FindStringSubmatch(elem.AttrOr("href", ""))
-		if len(token) != 3 {
+		// fmt.Println(token) // [../cards/001086/card4311.html 001086 4311]
+		if len(token) != 3 { // 正規表現にマッチしない場合
 			return
 		}
 		pageURL := fmt.Sprintf("https://www.aozora.gr.jp/cards/%s/card%s.html",
 			token[1], token[2])
-		println(pageURL)
+		author, zipURL := findAuthorAndZIP(pageURL) // 作者とZIPファイルのURLを得る
+		println(author, zipURL)
 
 	})
-
+	
 	return nil, nil // とりま、nil
+}
+
+// 作者とZIPファイルのURLを得る
+func findAuthorAndZIP(siteURL string) (string, string) {
+	log.Println("query", siteURL)
+	doc, err := goquery.NewDocument(siteURL)
+	if err != nil {
+		return "", ""
+	}
+
+	author := doc.Find("table[summary=作家データ] tr:nth-child(1) td:nth-child(2)").Text()
+
+	zipURL := ""
+	doc.Find("table.download a").Each(func(n int, elem *goquery.Selection) {
+		href := elem.AttrOr("href", "")
+		if strings.HasSuffix(href, ".zip") {
+			zipURL = href
+		}
+	})
+
+	if zipURL == "" {
+		return author, ""
+	}
+	// zipURLの始まりが "http://" or "https://" なら true
+	if strings.HasPrefix(zipURL, "http://") || strings.HasPrefix(zipURL, "https://") {
+		return author, zipURL
+	}
+
+	u, err := url.Parse(siteURL)
+	if err != nil {
+		return author, ""
+	}
+	u.Path = path.Join(path.Dir(u.Path), zipURL)
+
+	return author, u.String()
 }
 
 func main() {
